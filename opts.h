@@ -86,6 +86,11 @@ struct Options {
   static inline const auto kYcsbReadOnly = Option("YcsbReadOnly");
   static inline const auto kYcsbDependency = Option("YcsbDependency", false);
 
+  // Decimal account count. Do not pass a K/M suffix: K means << 10.
+  static inline const auto kSmallBankAccounts = Option("SmallBankAccounts");
+  // Wait for one submitter to send every transaction before the run starts.
+  static inline const auto kSmallBankRouted = Option("SmallBankRouted", false);
+
   static inline const auto kEnableGranola = Option("EnableGranola", false);
   static inline const auto kEnablePWV = Option("EnablePWV", false);
   static inline const auto kPWVGraphAlloc = Option("PWVGraphAlloc");

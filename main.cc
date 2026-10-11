@@ -96,8 +96,12 @@ int main(int argc, char *argv[])
   client->GenerateBenchmarks();
 
   console.UpdateServerStatus(Console::ServerStatus::Listening);
-  logger->info("Ready. Waiting for run command from the controller.");
-  console.WaitForServerStatus(felis::Console::ServerStatus::Running);
+  if (EpochClient::g_skip_controller_run) {
+    logger->info("Ready. Transactions were routed in; starting.");
+  } else {
+    logger->info("Ready. Waiting for run command from the controller.");
+    console.WaitForServerStatus(felis::Console::ServerStatus::Running);
+  }
 
   abort_if(EpochClient::g_workload_client == nullptr,
            "Workload Module did not setup the EpochClient properly");

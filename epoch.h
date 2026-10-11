@@ -162,6 +162,10 @@ class EpochClient {
   };
 
   static size_t g_txn_per_epoch;
+  // Set by a workload that already received its transactions from a submitter.
+  static bool g_skip_controller_run;
+  static void (*g_run_finished_hook)(long throughput, long insert_ms,
+                                     long init_ms, long exec_ms);
   static constexpr size_t kMaxPiecesPerPhase = 12800000;
 
   static inline size_t g_max_epoch = 50;
@@ -231,6 +235,7 @@ class EpochObject {
 
   int origin_node_id() const { return node_id; }
   uint64_t nr() const { return epoch_nr; }
+  uint64_t buffer_offset() const { return offset; }
 
   template <typename P>
   static GenericEpochObject<P> Convert(P *ptr) {

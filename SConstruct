@@ -59,6 +59,18 @@ ycsb_srcs = [
     'benchmark/ycsb/ycsb_workload.cc',
 ]
 
+smallbank_headers = [
+    'benchmark/smallbank/table_decl.h',
+    'benchmark/smallbank/smallbank.h',
+    'benchmark/smallbank/remote_slot.h',
+]
+
+smallbank_srcs = [
+    'benchmark/smallbank/smallbank.cc',
+    'benchmark/smallbank/smallbank_workload.cc',
+    'benchmark/smallbank/remote_slot.cc',
+]
+
 db_headers = [
     'console.h', 'felis_probes.h', 'epoch.h', 'routine_sched.h', 'gc.h', 'index.h', 'index_common.h',
     'log.h', 'mem.h', 'module.h', 'opts.h', 'node_config.h', 'probe_utils.h', 'piece.h', 'piece_cc.h',
@@ -209,13 +221,14 @@ print('sconstruct: using %d number of parallel jobs' % GetOption('num_jobs'))
 
 tpcc = build.StaticLibrary(target=build_conf + '/tpcc', source=[build_src(s) for s in tpcc_srcs])
 ycsb = build.StaticLibrary(target=build_conf + '/ycsb', source=[build_src(s) for s in ycsb_srcs])
+smallbank = build.StaticLibrary(target=build_conf + '/smallbank', source=[build_src(s) for s in smallbank_srcs])
 
 full_srcs = [build_src(s) for s in db_srcs + ['main.cc', 'module.cc']]
 full_srcs += [
     build.Object(build_src(s), CXXFLAGS=['-include', 'masstree/build/config.h', '-Wno-deprecated-declarations'] + build['CXXFLAGS'])
     for s in masstree_srcs
 ]
-full_srcs += env.Command('-Wl,--whole-archive', [], '') + [tpcc, ycsb] + env.Command('-Wl,--no-whole-archive', [], '')
+full_srcs += env.Command('-Wl,--whole-archive', [], '') + [tpcc, ycsb, smallbank] + env.Command('-Wl,--no-whole-archive', [], '')
 
 build.Program(target=build_conf + '/db', source=full_srcs)
 

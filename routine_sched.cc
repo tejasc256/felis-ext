@@ -577,11 +577,8 @@ void EpochExecutionDispatchService::AddBubble()
   tot_bubbles.fetch_add(1);
 }
 
-bool EpochExecutionDispatchService::Preempt(int core_id, BasePieceCollection::ExecutionRoutine *routine_state)
+bool EpochExecutionDispatchService::Preempt(int core_id, BasePieceCollection::ExecutionRoutine *routine_state, bool yield_to_later)
 {
-  auto &lock = queues[core_id]->lock;
-  bool can_preempt = true;
-  auto &zq = queues[core_id]->zq;
   auto &q = queues[core_id]->pq;
   auto &state = queues[core_id]->state;
 
@@ -591,15 +588,52 @@ bool EpochExecutionDispatchService::Preempt(int core_id, BasePieceCollection::Ex
   if (key == 0)
     return false; // sched_key == 0 and preempt isn't supported.
 
+  if (yield_to_later) {
+    // Step aside only when some other piece can still make progress.
+    bool useful = !q.sched_pol->empty();
+    if (!useful) {
+      for (uint32_t i = 0; i < q.waiting.len; i++) {
+        auto &w = q.waiting.states[(q.waiting.off + i) % kOutOfOrderWindow];
+        if (w.real_key == 0) {
+          useful = true;
+          break;
+        }
+      }
+    }
+    if (!useful)
+      return false;
+  } else if (q.waiting.len > 0) {
+    // A later piece is blocked on a version this yielded waiter still writes.
+    int best_i = -1;
+    uint64_t best_key = key;
+    for (uint32_t i = 0; i < q.waiting.len; i++) {
+      auto idx = (q.waiting.off + i) % kOutOfOrderWindow;
+      auto rk = q.waiting.states[idx].real_key;
+      if (rk != 0 && rk < best_key) {
+        best_i = (int) i;
+        best_key = rk;
+      }
+    }
+    if (best_i > 0) {
+      auto idx = (q.waiting.off + best_i) % kOutOfOrderWindow;
+      auto tmp = q.waiting.states[idx];
+      q.waiting.states[idx] = q.waiting.states[q.waiting.off];
+      q.waiting.states[q.waiting.off] = tmp;
+    }
+    if (best_i >= 0)
+      q.waiting.states[q.waiting.off].sched_key = q.waiting.states[q.waiting.off].real_key;
+  }
+
   abort_if(q.waiting.len == kOutOfOrderWindow, "out-of-order scheduling window is full");
 
   auto &ws = q.waiting.states[(q.waiting.off + q.waiting.len) % kOutOfOrderWindow];
   ws.preempt_ts = state.ts;
-  ws.sched_key = state.current_sched_key;
+  ws.sched_key = yield_to_later ? ~uint64_t{0} : key;
+  ws.real_key = yield_to_later ? key : 0;
   ws.state = routine_state;
 
   // There is nothing to switch to!
-  if (q.waiting.len == 0 && q.sched_pol->ShouldPickWaiting(ws))
+  if (!yield_to_later && q.waiting.len == 0 && q.sched_pol->ShouldPickWaiting(ws))
     return false;
 
   q.waiting.len++;

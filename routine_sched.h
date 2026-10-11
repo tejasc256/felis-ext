@@ -17,6 +17,10 @@ struct WaitState {
   BasePieceCollection::ExecutionRoutine *state;
   uint64_t sched_key;
   uint64_t preempt_ts;
+  // Set when this piece is waiting on a cross-node value. sched_key is then
+  // ~0 so later pieces can run; real_key is the original serial id so a later
+  // piece blocked on this version can resume it.
+  uint64_t real_key;
 };
 
 struct PriorityQueueHashEntry : public util::GenericListNode<PriorityQueueHashEntry> {
@@ -69,7 +73,7 @@ class EpochExecutionDispatchService : public PromiseRoutineDispatchService {
   };
  public:
   static unsigned int Hash(uint64_t key) { return key >> 8; }
-  static constexpr int kOutOfOrderWindow = 31;
+  static constexpr int kOutOfOrderWindow = 512;
 
   using PriorityQueueHashHeader = util::GenericListNode<PriorityQueueHashEntry>;
  private:
@@ -138,7 +142,7 @@ class EpochExecutionDispatchService : public PromiseRoutineDispatchService {
   void Add(int core_id, PieceRoutine **routines, size_t nr_routines) final override;
   void AddBubble() final override;
   bool Peek(int core_id, DispatchPeekListener &should_pop) final override;
-  bool Preempt(int core_id, BasePieceCollection::ExecutionRoutine *state) final override;
+  bool Preempt(int core_id, BasePieceCollection::ExecutionRoutine *state, bool yield_to_later = false) final override;
   void Reset() final override;
   void Complete(int core_id) final override;
   int TraceDependency(uint64_t key) final override;

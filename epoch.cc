@@ -29,6 +29,8 @@ bool EpochClient::g_enable_pwv = false;
 long EpochClient::g_corescaling_threshold = 0;
 long EpochClient::g_splitting_threshold = std::numeric_limits<long>::max();
 size_t EpochClient::g_txn_per_epoch = 100000;
+bool EpochClient::g_skip_controller_run = false;
+void (*EpochClient::g_run_finished_hook)(long, long, long, long) = nullptr;
 
 void EpochCallback::operator()(unsigned long cnt)
 {
@@ -504,6 +506,10 @@ void EpochClient::OnExecuteComplete()
     logger->info("Throughput {} txn/s", thr);
     logger->info("Insert / Initialize / Execute {} ms {} ms {} ms",
                  stats.insert_time_ms, stats.initialize_time_ms, stats.execution_time_ms);
+    if (g_run_finished_hook) {
+      g_run_finished_hook(thr, stats.insert_time_ms, stats.initialize_time_ms,
+                          stats.execution_time_ms);
+    }
     mem::PrintMemStats();
     mem::GetDataRegion().PrintUsageEachClass();
 
